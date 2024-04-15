@@ -15,12 +15,16 @@
 <GridWrapper @ref="Wrapper"
              FilterChanged="ReloadAsync"
              DeleteRequested="id => Wrapper.DeleteRequestId = id">
+
     <div class="container-fluid contacts-grid">
+
         <div class="row">
             <div class="col-4"><NameToggle /></div>
             <div class="col-8"><TextFilter /></div>
         </div>
+
         <div class="row">&nbsp;</div>
+
         <div class="row">
             <div class="col-6">
                 Page @Filters.PageHelper.Page of @Filters.PageHelper.PageCount:
@@ -38,7 +42,9 @@
                 </a>
             </div>
         </div>
+
         <div class="row">&nbsp;</div>
+
         <div class="row contact-header">
             <div class="col-1">&nbsp;</div>
             <div class="col-2"
@@ -66,6 +72,7 @@
                 <SortIndicator Column="@(ContactFilterColumns.ZipCode)" />&nbsp;ZipCode
             </div>
         </div>
+
         @if (Filters.Loading || Contacts is null)
         {
             <div class="row">
@@ -74,6 +81,7 @@
                 </div>
             </div>
         }
+
         @if (Contacts is not null && Contacts.Count == 0)
         {
             <div class="row">
@@ -82,6 +90,7 @@
                 </div>
             </div>
         }
+
         @if (Contacts is not null)
         {
             @foreach (var contact in Contacts)
@@ -90,6 +99,7 @@
                             DeleteContact="DeleteContactAsync" />
             }
         }
+        
     </div>
 </GridWrapper>
 
