@@ -1,0 +1,104 @@
+﻿@page "/add"
+@rendermode InteractiveServer
+@using BlazorWebAppEFCore.Grid
+@inject IDbContextFactory<ContactContext> DbFactory
+@inject NavigationManager Navigation
+@inject IPageHelper PageHelper
+
+@if (Contact is not null)
+{
+
+    // ContactForm es un componente razor, recibe los siguientes parametros:
+    // Busy:    Evitar múltiples operaciones asincrónicas al mismo tiempo.
+    // Contact: Contacto a insertar/modificar.
+    // CancelRequest:       EventCallback Cancelar.
+    // ValidationResult:    EventCallback<bool> Resultado validado, Succes: True o False
+
+    <ContactForm Busy="Busy" 
+                 Contact="Contact" 
+                 IsAdd="true"
+                 CancelRequest="Cancel"
+                 ValidationResult="@(async (success) => await ValidationResultAsync(success))" />
+}
+
+@if (Success)
+{
+    <br />
+    <div class="alert alert-success">The contact was successfully added.</div>
+}
+@if (Error)
+{
+    <br />
+    <div class="alert alert-danger">Failed to add the contact (@ErrorMessage).</div>
+}
+
+@code {
+    private Contact? Contact { get; set; }
+
+    // Busy: Asynchronous operation is running.
+    private bool Busy;
+    private bool Success;
+    private bool Error;
+
+    private string ErrorMessage = string.Empty;
+
+    // Comience con un nuevo contacto.
+    protected override Task OnInitializedAsync()
+    {
+        Contact = new();
+        return base.OnInitializedAsync();
+    }
+
+    // Responder al envío de un formulario.
+    // success: True cuando es válido.
+    private async Task ValidationResultAsync(bool success)
+    {
+        if (Busy)
+        {
+            return;
+        }
+
+        if (!success)
+        {
+            Success = false;
+            Error = false;
+            return;
+        }
+
+        Busy = true;
+
+        using var context = DbFactory.CreateDbContext();
+
+        // Esto simplemente se adjunta.
+        if (Contact is not null)
+        {
+            // Comienza a rastrear la entidad dada y cualquier otra entidad accesible
+            // que aún no están siendo rastreados, en el estado EntityState.Added
+            // de modo que se insertarán en la base de datos cuando se llame a DbContext.SaveChanges().
+            context.Contacts?.Add(Contact);
+        }
+
+        try
+        {
+            await context.SaveChangesAsync();
+            Success = true;
+            Error = false;
+            // Listo para el próximo.
+            Contact = new();
+            Busy = false;
+        }
+        catch (Exception ex)
+        {
+            Success = false;
+            Error = true;
+            ErrorMessage = ex.Message;
+            Busy = false;
+        }
+    }
+
+    // Regresar a lista de
+    private void Cancel()
+    {
+        Navigation.NavigateTo($"/{PageHelper.Page}");
+    }
+}

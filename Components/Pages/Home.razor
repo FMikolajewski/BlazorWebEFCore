@@ -1,0 +1,240 @@
+﻿@page "/"
+@page "/{Page:int}"
+@rendermode InteractiveServer
+@using BlazorWebAppEFCore.Grid
+@using Microsoft.EntityFrameworkCore
+@inject IContactFilters Filters
+@inject IDbContextFactory<ContactContext> DbFactory
+@inject NavigationManager Navigation
+@inject GridQueryAdapter QueryAdapter
+
+<PageTitle>BWA EF Core Sample</PageTitle>
+
+<h1>Contacts</h1>
+
+<GridWrapper @ref="Wrapper"
+             FilterChanged="ReloadAsync"
+             DeleteRequested="id => Wrapper.DeleteRequestId = id">
+    <div class="container-fluid contacts-grid">
+        <div class="row">
+            <div class="col-4"><NameToggle /></div>
+            <div class="col-8"><TextFilter /></div>
+        </div>
+        <div class="row">&nbsp;</div>
+        <div class="row">
+            <div class="col-6">
+                Page @Filters.PageHelper.Page of @Filters.PageHelper.PageCount:
+                showing @Filters.PageHelper.PageItems of
+                @Filters.PageHelper.TotalItemCount items.
+                <a disabled="@(Filters.Loading || !Filters.PageHelper.HasPrev)"
+                   class="btn btn-primary @IsDisabled(Filters.PageHelper.HasPrev)"
+                   href="@Filters.PageHelper.PrevPage">
+                    Previous
+                </a>
+                <a disabled="@(Filters.Loading || !Filters.PageHelper.HasNext)"
+                   class="btn btn-primary @IsDisabled(Filters.PageHelper.HasNext)"
+                   href="@Filters.PageHelper.NextPage">
+                    Next
+                </a>
+            </div>
+        </div>
+        <div class="row">&nbsp;</div>
+        <div class="row contact-header">
+            <div class="col-1">&nbsp;</div>
+            <div class="col-2"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.Name))">
+                <SortIndicator Column="@(ContactFilterColumns.Name)" />&nbsp;Name
+            </div>
+            <div class="col-2"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.Phone))">
+                <SortIndicator Column="@(ContactFilterColumns.Phone)" />&nbsp;📞 Phone
+            </div>
+            <div class="col-3"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.Street))">
+                <SortIndicator Column="@(ContactFilterColumns.Street)" />&nbsp;🏠 Street Address
+            </div>
+            <div class="col-2"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.City))">
+                <SortIndicator Column="@(ContactFilterColumns.City)" />&nbsp;City
+            </div>
+            <div class="col-1"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.State))">
+                <SortIndicator Column="@(ContactFilterColumns.State)" />&nbsp;State
+            </div>
+            <div class="col-1"
+            @onclick="@(async ()=>await ToggleAsync(ContactFilterColumns.ZipCode))">
+                <SortIndicator Column="@(ContactFilterColumns.ZipCode)" />&nbsp;ZipCode
+            </div>
+        </div>
+        @if (Filters.Loading || Contacts is null)
+        {
+            <div class="row">
+                <div class="col-12 alert alert-info">
+                    Loading...
+                </div>
+            </div>
+        }
+        @if (Contacts is not null && Contacts.Count == 0)
+        {
+            <div class="row">
+                <div class="col-12 alert alert-warning">
+                    No contacts found.
+                </div>
+            </div>
+        }
+        @if (Contacts is not null)
+        {
+            @foreach (var contact in Contacts)
+            {
+                <ContactRow @key=contact CurrentContact="contact"
+                            DeleteContact="DeleteContactAsync" />
+            }
+        }
+    </div>
+</GridWrapper>
+
+@code {
+    // The current page.
+    [Parameter]
+    public int Page
+    {
+        get => Filters.PageHelper.Page;
+        set
+        {
+            Filters.PageHelper.Page = value;
+        }
+    }
+
+    // Un contenedor para actividades relacionadas con la cuadrícula (como eliminar).
+    private GridWrapper Wrapper { get; set; } = new GridWrapper();
+
+    // Página actual de Contacto.
+    private ICollection<Contact>? Contacts { get; set; }
+
+    // Método auxiliar para configurar deshabilitado en la clase para paginación.
+    // condición: Cuando el elemento está activo (y por lo tanto no debe estar deshabilitado).
+    // Devuelve el literal de cadena "deshabilitado" o una cadena vacía.
+    private string IsDisabled(bool condition) =>
+        !Filters.Loading && condition ? "" : "disabled";
+
+    // Realiza un seguimiento de la última página cargada.
+    private int _lastPage = -1;
+
+    // Override de Lógica principal al empezar.
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Asegúrese de que estemos en la misma página (correcta).
+        if (_lastPage < 1)
+        {
+            Navigation.NavigateTo("/1");
+            return;
+        }
+
+        // Normaliza los valores de la página.
+        if (Filters.PageHelper.PageCount > 0)
+        {
+            if (Page < 1)
+            {
+                Navigation.NavigateTo("/1");
+                return;
+            }
+            if (Page > Filters.PageHelper.PageCount)
+            {
+                Navigation.NavigateTo($"/{Filters.PageHelper.PageCount}");
+                return;
+            }
+        }
+
+        // OnAfterRender:
+        // Método invocado cada vez que el componente se ha representado de forma interactiva
+        // y la interfaz de usuario ha terminado de actualizarse (por ejemplo, después de que se hayan agregado
+        // elementos al DOM del navegador). Todos los campos de ElementReference se completarán cuando se ejecute esto.
+        // Este método no se invoca durante la renderización previa o la renderización del lado del servidor,
+        // porque esos procesos no están adjuntos a ningún DOM del navegador en vivo y ya están completos
+        // antes de que se actualice el DOM.
+        base.OnAfterRender(firstRender);
+    }
+
+    // Activado para cualquier actualización de paginación.
+    protected override async Task OnParametersSetAsync()
+    {
+        // Asegúrate de que la página realmente haya cambiado.
+        if (Page != _lastPage)
+        {
+            _lastPage = Page;
+            await ReloadAsync();
+        }
+        await base.OnParametersSetAsync();
+    }
+
+    // Used to toggle the grid sort. Will either switch to "ascending" on a new
+    // column, or toggle between "ascending" and "descending" on a column with the
+    // sort already set.
+    private Task ToggleAsync(ContactFilterColumns col)
+    {
+        if (Filters.SortColumn == col)
+        {
+            Filters.SortAscending = !Filters.SortAscending;
+        }
+        else
+        {
+            Filters.SortColumn = col;
+        }
+        return ReloadAsync();
+    }
+
+    // Deletes a contact.
+    // <snippet1>
+    private async Task DeleteContactAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        Filters.Loading = true;
+
+        if (Wrapper is not null && context.Contacts is not null)
+        {
+            var contact = await context.Contacts
+                .FirstAsync(c => c.Id == Wrapper.DeleteRequestId);
+
+            if (contact is not null)
+            {
+                context.Contacts?.Remove(contact);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        Filters.Loading = false;
+
+        await ReloadAsync();
+    }
+    // </snippet1>
+
+    // Reload page based on filters and paging controls.
+    private async Task ReloadAsync()
+    {
+        if (Filters.Loading || Page < 1)
+        {
+            return;
+        }
+
+        Filters.Loading = true;
+
+        if (Wrapper is not null)
+        {
+            Wrapper.DeleteRequestId = 0;
+        }
+
+        Contacts = new List<Contact>();
+
+        using var context = DbFactory.CreateDbContext();
+        var query = context.Contacts?.AsQueryable();
+
+        if (query is not null)
+        {
+            // Run the query to load the current page.
+            Contacts = await QueryAdapter.FetchAsync(query);
+        }
+
+        Filters.Loading = false;
+    }
+}
+

@@ -1,0 +1,22 @@
+<CascadingValue Value="this" IsFixed="true">
+    @ChildContent
+</CascadingValue>
+
+@code {
+    // GridWrapper:     envoltura de rejilla
+
+    // Representa lo que hay dentro de las etiquetas y coloca en cascada una copia de sí mismo.
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    // Llama cuando el filtro haya cambiado para actualizar la lista de contactos.
+    [Parameter]
+    public EventCallback FilterChanged { get; set; }
+
+    // Llamar cuando se solicita la eliminación de un contacto.
+    [Parameter]
+    public EventCallback<int> DeleteRequested { get; set; }
+
+    // La identificación del contacto que se eliminará.
+    public int DeleteRequestId { get; set; }
+}
